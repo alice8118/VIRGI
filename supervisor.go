@@ -13,7 +13,6 @@ import (
 	"math/rand/v2"
 	"net"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,7 +52,7 @@ const (
 	maxBackoffInterval = 5 * time.Second
 	backoffJitterFrac  = 0.20
 
-	healthGenShift = 8
+	healthGenShift      = 8
 	prSetChildSubreaper = 36
 )
 
@@ -124,7 +123,6 @@ func (r *processReaper) reaperLoop() {
 			continue
 		}
 		if errors.Is(err, syscall.ECHILD) {
-			// No current child processes exist; back off briefly
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
@@ -144,7 +142,6 @@ func (r *processReaper) reaperLoop() {
 			ch <- childExit{pid: pid, status: status}
 			close(ch)
 		}
-		// Adopted grandchildren are reaped instantly here without leaking.
 	}
 }
 
@@ -443,7 +440,6 @@ func (s *Supervisor) startAndWait(ctx context.Context) error {
 		return fmt.Errorf("start Xray: %w", err)
 	}
 
-	// Close parent write ends so pumps read EOF on child termination
 	_ = stdoutW.Close()
 	_ = stderrW.Close()
 
@@ -474,7 +470,6 @@ func (s *Supervisor) startAndWait(ctx context.Context) error {
 	var exit childExit
 	select {
 	case exit = <-exitCh:
-		// Child exited on its own; terminate any remaining processes in its session group
 		terminateProcessGroup(pid, 200*time.Millisecond)
 	case <-ctx.Done():
 		terminateProcessGroup(pid, s.terminationGrace())
