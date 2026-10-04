@@ -53,7 +53,7 @@ const (
 
 var openrestyModTime = time.Date(2021, time.August, 6, 21, 32, 34, 0, time.UTC)
 
-// Official OpenResty 1.19.9.1 index.html (1097 bytes, LF)
+// Official OpenResty 1.19.9.1 index.html (exactly 1097 bytes, LF)
 const openrestyWelcomeHTML = "<!DOCTYPE html>\n" +
 	"<html>\n" +
 	"<head>\n" +
@@ -69,7 +69,7 @@ const openrestyWelcomeHTML = "<!DOCTYPE html>\n" +
 	"</style>\n" +
 	"</head>\n" +
 	"<body>\n" +
-	"<h1>Welcome to OpenResty!</h1\n" +
+	"<h1>Welcome to OpenResty!</h1>\n" +
 	"<p>If you see this page, the OpenResty web platform is successfully installed and\n" +
 	"working. Further configuration is required.</p>\n" +
 	"\n" +
@@ -83,7 +83,7 @@ const openrestyWelcomeHTML = "<!DOCTYPE html>\n" +
 	"</body>\n" +
 	"</html>\n"
 
-// Official OpenResty 1.19.9.1 50x.html (982 bytes, LF)
+// Official OpenResty 1.19.9.1 50x.html (exactly 982 bytes, LF)
 const openresty50xHTML = "<!DOCTYPE html>\n" +
 	"<html>\n" +
 	"<head>\n" +
@@ -517,7 +517,6 @@ func (g *Gateway) serveWS(w http.ResponseWriter, r *http.Request, backend string
 		return
 	}
 
-	// Immediate tracking closes the admission race during drain
 	if !g.track(ct, bc) {
 		_ = ct.Close()
 		_ = bc.Close()
@@ -545,7 +544,6 @@ func (g *Gateway) serveWS(w http.ResponseWriter, r *http.Request, backend string
 		return
 	}
 
-	// Drain userland buffer before relinquishing control to Linux splice
 	_ = brw.Writer.Flush()
 	if n := brw.Reader.Buffered(); n > 0 {
 		if _, err := io.CopyN(bc, brw.Reader, int64(n)); err != nil {
@@ -566,7 +564,6 @@ func (g *Gateway) relay(client, backend *net.TCPConn) {
 
 	<-done
 
-	// Bound remaining transfer on lost FIN or zero-window stalls
 	drainDeadline := time.Now().Add(halfCloseGrace)
 	_ = client.SetDeadline(drainDeadline)
 	_ = backend.SetDeadline(drainDeadline)
@@ -595,7 +592,6 @@ func (g *Gateway) serveCamouflage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Trailing slash on static files must return 404 in authentic OpenResty
 	if r.URL.Path == "/index.html/" || r.URL.Path == "/50x.html/" {
 		g.camo404(w, r)
 		return
@@ -612,8 +608,6 @@ func (g *Gateway) serveCamouflage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// serveStatic leverages http.ServeContent to accurately handle 206 Partial Content,
-// 416 Range Not Satisfiable, 304 Not Modified, and ETag casing preservation.
 func (g *Gateway) serveStatic(w http.ResponseWriter, r *http.Request, name, etag string, content []byte) {
 	h := w.Header()
 	h["Server"] = []string{openrestyServerToken}
@@ -623,7 +617,6 @@ func (g *Gateway) serveStatic(w http.ResponseWriter, r *http.Request, name, etag
 	if shouldCloseConnection(r) {
 		h["Connection"] = []string{"close"}
 	} else {
-		// Authentic OpenResty omits Connection entirely on HTTP/1.1 keep-alive
 		h.Del("Connection")
 	}
 
@@ -678,12 +671,12 @@ func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Unauthenticated health probes receive authentic OpenResty camouflage
 	if healthy {
 		g.serveStatic(w, r, "index.html", openrestyIndexETag, []byte(openrestyWelcomeHTML))
 	} else {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		g.serveStatic(w, r, "50x.html", openresty50xETag, []byte(openresty50xHTML))
+		camoOpenResty(w, r, http.StatusServiceUnavailable, openresty50xHTML, map[string]string{
+			"ETag": openresty50xETag,
+		})
 	}
 }
 
